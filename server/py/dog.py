@@ -857,9 +857,9 @@ class Dog(Game):
             return (64 - pos_from) + (pos_to - 64)
 
         # if both positions are >= 64, we are in kennel or finish lane
-        # here the movement should be linear (no wrap-around)
+        # with reversed numbering in finish, ensure steps are positive
         if pos_from >= 64 and pos_to >= 64:
-            return pos_to - pos_from
+            return abs(pos_to - pos_from)
 
         # If none of the above applies (which shouldn't happen in correct logic), return 0
         return 0
