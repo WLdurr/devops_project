@@ -144,6 +144,8 @@ class Dog(Game):
          # Track all swap card exchanges
         self.exchanges_done: List[Tuple[int, Card]] = []
 
+        self.original_state_before_7: Optional[GameState] = None
+
         # Initialize the deck of cards
         self.state.list_card_draw = GameState.LIST_CARD.copy()
         random.shuffle(self.state.list_card_draw)
@@ -599,6 +601,13 @@ class Dog(Game):
 
         # Handle the case where action is None (start a new round). No player can do anything anymore.
         if action is None:
+            # If a 7-sequence is active but not completed, revert state
+            if self.state.card_active is not None and self.state.card_active.rank == '7' and self.state.steps_remaining_for_7 > 0:
+                # Revert to original state before 7-sequence
+                self.state = self.original_state_before_7
+                self.original_state_before_7 = None
+                return
+            
             # Add the player's cards to the discard pile
             for card in self.state.list_player[active_player_index].list_card:
                 self.state.list_card_discard.append(card)
@@ -660,7 +669,8 @@ class Dog(Game):
             
         elif action.card.rank == '7':
             if self.state.card_active is None:
-                # Starting a new 7-sequence
+                # Starting a new 7-sequence: backup current state
+                self.original_state_before_7 = self.state.model_copy(deep=True)
                 self.state.card_active = action.card
                 self.state.steps_remaining_for_7 = 7
 
@@ -706,6 +716,7 @@ class Dog(Game):
 
                 # Clear card_active and move to next player
                 self.state.card_active = None
+                self.original_state_before_7 = None
                 self.state.idx_player_active = (self.state.idx_player_active + 1) % self.state.cnt_player
 
             # If not finished, don't change player; allow next partial move with the 7 card
