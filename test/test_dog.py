@@ -469,3 +469,55 @@ def test_apply_action_none(game):
 
     # Check that a new round has started
     assert game.state.cnt_round == 1, "A new round should start when all players have played their cards"
+
+def setup_game_for_jack_test(game, active_player_idx, card_rank='J'):
+    """Helper function to set up the game state for Jack card tests."""
+    game.state.idx_player_active = active_player_idx
+    active_player = game.state.list_player[active_player_idx]
+    active_player.list_card = [Card(suit='♠', rank=card_rank)]
+
+def test_jack_swap_between_players(game):
+    """Test swapping marbles between the active player and another player."""
+    setup_game_for_jack_test(game, active_player_idx=0)
+
+    # Set marble positions for swapping
+    game.state.list_player[0].list_marble[0].pos = 5
+    game.state.list_player[1].list_marble[0].pos = 10
+
+    actions = game.get_list_action()
+
+    # Check that swap actions are generated
+    assert any(action.pos_from == 5 and action.pos_to == 10 for action in actions), \
+        "Should generate action to swap marble from position 5 to 10"
+    assert any(action.pos_from == 10 and action.pos_to == 5 for action in actions), \
+        "Should generate action to swap marble from position 10 to 5"
+
+def test_jack_no_swap_due_to_protected_positions(game):
+    """Test no swap occurs when opponent marbles are in protected positions."""
+    setup_game_for_jack_test(game, active_player_idx=0)
+
+    # Set opponent marbles in protected positions (e.g., kennel)
+    game.state.list_player[1].list_marble[0].pos = game.KENNEL_POSITIONS[1][0]
+    game.state.list_player[1].list_marble[1].pos = game.KENNEL_POSITIONS[1][1]
+
+    actions = game.get_list_action()
+
+    # Check that no swap actions are generated
+    assert not any(action.card.rank == 'J' for action in actions), \
+        "Should not generate swap actions when opponent marbles are protected"
+
+def test_jack_swap_within_player(game):
+    """Test swapping marbles within the active player's own marbles."""
+    setup_game_for_jack_test(game, active_player_idx=0)
+
+    # Set marble positions for internal swapping
+    game.state.list_player[0].list_marble[0].pos = 5
+    game.state.list_player[0].list_marble[1].pos = 15
+
+    actions = game.get_list_action()
+
+    # Check that internal swap actions are generated
+    assert any(action.pos_from == 5 and action.pos_to == 15 for action in actions), \
+        "Should generate action to swap marble from position 5 to 15 within the same player"
+    assert any(action.pos_from == 15 and action.pos_to == 5 for action in actions), \
+        "Should generate action to swap marble from position 15 to 5 within the same player"
