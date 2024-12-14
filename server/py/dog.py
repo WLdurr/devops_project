@@ -173,10 +173,6 @@ class Dog(Game):
         # Initialize the state of the card exchange
         self.state.bool_card_exchanged = False
 
-        # Initialize the number of rounds
-        # (Stefan) Is this necessary? we already initialized cnt_round to 1 in INIT
-        self.state.cnt_round = 1
-
         self.state.phase = GamePhase.RUNNING
 
         # Deal initial cards for the first round (6 cards per player)
@@ -329,7 +325,7 @@ class Dog(Game):
                     if m.pos in self.KENNEL_POSITIONS[active_player_idx]
                 ]
                 start_pos = self.START_POSITION[active_player_idx]
-                
+
                 # Option 2: Joker für 1 bis 13 Felder verwenden
                 seen_actions = set()  # Set, um doppelte Aktionen zu vermeiden
                 for possible_card in range(1, 14):
@@ -361,8 +357,7 @@ class Dog(Game):
                                     actions.append(action)
 
                 # Option 3: Tauschaktionen mit Ass und König für jede Farbe
-                LIST_SUIT = ['♠', '♥', '♦', '♣']
-                for suit in LIST_SUIT:
+                for suit in self.state.LIST_SUIT:
                     # Tauschen mit einer Ass-Karte (A) - einmal pro Farbe
                     actions.append(
                         Action(
@@ -505,7 +500,6 @@ class Dog(Game):
 
         return actions
 
-    # (Stefan): deal cards as new action
     def deal_cards(self, num_cards_per_player: int) -> None:
         """Deal a specified number of cards to each player."""
         total_cards_to_deal = num_cards_per_player * self.state.cnt_player
@@ -514,23 +508,28 @@ class Dog(Game):
         for player_state in self.state.list_player:
             player_state.list_card.clear()
 
+        if not self.state.list_card_draw:
+            # Reshuffle the deck if it is empty
+            self.state.list_card_draw = GameState.LIST_CARD.copy()
+            self.state.list_card_discard.clear()
+            random.shuffle(self.state.list_card_draw)
+
+        # Get list of indices of player in order of card dealing
+        player_indices = (list(range(self.state.idx_player_active, self.state.cnt_player)) +
+                          list(range(0, self.state.idx_player_active)))
+
         # Deal the cards to each player
         for _ in range(num_cards_per_player):
-            for player_state in self.state.list_player:
+            for idx in player_indices:
+                card = self.state.list_card_draw.pop()  # Pop a card from the deck
+                self.state.list_player[idx].list_card.append(card)
+
                 if not self.state.list_card_draw:
-                    # Reshuffle the discard pile into the draw pile
-                    self.state.list_card_draw.extend(self.state.list_card_discard)
+                    # Reshuffle the deck if it is empty
+                    self.state.list_card_draw = GameState.LIST_CARD.copy()
                     self.state.list_card_discard.clear()
                     random.shuffle(self.state.list_card_draw)
 
-                card = self.state.list_card_draw.pop()  # Pop a card from the deck
-                player_state.list_card.append(card)
-
-        # After dealing, check if the draw pile is empty and reshuffle if necessary
-        if not self.state.list_card_draw:
-            self.state.list_card_draw.extend(self.state.list_card_discard)
-            self.state.list_card_discard.clear()
-            random.shuffle(self.state.list_card_draw)
 
     def start_new_round(self) -> None:
         """ Begin a new round by reshuffling and distributing cards. """
@@ -538,22 +537,16 @@ class Dog(Game):
         self.state.cnt_round += 1
         num_cards_per_player = 7 - ((self.state.cnt_round - 1) % 5 + 1)
 
+        # Have the next player start the round
+        self.state.idx_player_started = (self.state.idx_player_started + 1) % self.state.cnt_player
+        self.state.idx_player_active = self.state.idx_player_started
+
         # Deal the correct number of cards to each player for the current round
         self.deal_cards(num_cards_per_player)
 
         # Reset the exchange state and set active player
         self.state.bool_card_exchanged = False
 
-        # Rotate idx_player_active based on cnt_round
-        self.state.idx_player_active = (
-            (self.state.idx_player_started + self.state.cnt_round) % self.state.cnt_player
-        )
-
-        # Ensure idx_player_active does not equal idx_player_started
-        if self.state.idx_player_active == self.state.idx_player_started:
-            self.state.idx_player_active = (
-                (self.state.idx_player_started + 1) % self.state.cnt_player
-    )
         # Set the game phase to RUNNING
         self.state.phase = GamePhase.RUNNING
 
@@ -563,22 +556,27 @@ class Dog(Game):
 
         # Handle the case where action is None (start a new round). No player can do anything anymore.
         if action is None:
-            if all(len(player.list_card) == 0 for player in self.state.list_player):
+            # Add the player's cards to the discard pile
+            for card in self.state.list_player[active_player_index].list_card:
+                self.state.list_card_discard.append(card)
+
+            # Clear the player's hand
+            self.state.list_player[active_player_index].list_card.clear()
+
+            # Change the active player
+            self.state.idx_player_active = (self.state.idx_player_active + 1) % self.state.cnt_player
+
+            # Check if all players have played all their cards
+            if (all(players.list_card == [] for players in self.state.list_player) and
+                    self.state.idx_player_active == self.state.idx_player_started):
                 self.start_new_round()
             return
 
         # Handle card exchange at the beginning of the game
         if (action.pos_from is None and action.pos_to is None and
-                self.state.cnt_round == 0 and not self.state.bool_card_exchanged):
+                action.card_swap is None and not self.state.bool_card_exchanged):
             # Find the player who currently owns the card
-            card_owner_idx = None
-            for p_idx, player_state in enumerate(self.state.list_player):
-                if action.card in player_state.list_card:
-                    card_owner_idx = p_idx
-                    break
-
-            if card_owner_idx is None:
-                raise ValueError("Card not found with any player during card exchange.")
+            card_owner_idx = self.state.idx_player_active
 
             # Determine the partner's index
             partner_idx = (card_owner_idx + 2) % self.state.cnt_player
@@ -593,6 +591,9 @@ class Dog(Game):
             # Check if all players have exchanged cards
             if len(self.exchanges_done) == self.state.cnt_player:
                 self.state.bool_card_exchanged = True
+
+            # Change the active player
+            self.state.idx_player_active = (self.state.idx_player_active + 1) % self.state.cnt_player
 
             return
 
@@ -614,15 +615,8 @@ class Dog(Game):
             else:
                 raise ValueError("Invalid marble positions for swapping.")
 
-            # Move played card to discard pile
-            if action.card in self.state.list_player[active_player_index].list_card:
-                self.state.list_player[active_player_index].list_card.remove(action.card)
-                self.state.list_card_discard.append(action.card)
-
-            return
-
         # Normal card play
-        if action.pos_from is not None and action.pos_to is not None:
+        elif action.pos_from is not None and action.pos_to is not None:
             # Handle marble movement
             for idx_marble, marble in enumerate(self.state.list_player[active_player_index].list_marble):
                 if marble.pos == action.pos_from:
@@ -643,26 +637,16 @@ class Dog(Game):
 
         # Handle card swapping
         if action.card_swap is not None:
-            target_player_idx = (active_player_index + 2) % 4
+            pass
 
-            # Active player gives their card and the target player receives it
-            self.state.list_player[active_player_index].list_card.remove(action.card)
-            self.state.list_player[target_player_idx].list_card.append(action.card)
-
-            # Target player gives a random card back
-            self.state.list_player[target_player_idx].list_card.remove(action.card_swap)
-            self.state.list_player[active_player_index].list_card.append(action.card_swap)
-
-            self.state.bool_card_exchanged = True
-
-        # move played card from hand to discard pile
+        # Move played card to discard pile
         if action.card in self.state.list_player[active_player_index].list_card:
             self.state.list_player[active_player_index].list_card.remove(action.card)
             self.state.list_card_discard.append(action.card)
 
-        # Check if all players have finished their hands (end of round)
-        if all(len(player.list_card) == 0 for player in self.state.list_player):
-            self.start_new_round()
+        # Change the active player
+        self.state.idx_player_active = (self.state.idx_player_active + 1) % self.state.cnt_player
+
 
     def get_player_view(self, idx_player: int) -> GameState:
         """ Get the masked state for the active player (e.g. the opponent's cards are face down)"""
