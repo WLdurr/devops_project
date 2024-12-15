@@ -344,15 +344,18 @@ class Dog(Game):
         """ Check if a marble is overtaken and send it home """
         # If a marble is found at 'pos', send it home (unless it's the moved marble itself)
         for p_idx, player in enumerate(self.state.list_player):
-            for m_idx, m in enumerate(player.list_marble):
-                if m.pos == pos and not (p_idx == active_player_idx and
-                                         m.is_save and m.pos == self.START_POSITION[p_idx]):
-                    # The marble that got overtaken goes to its kennel
-                    if not (p_idx == active_player_idx and
-                            self.is_marble_protecting_start(p_idx, m_idx)):
-                        # Overtaken marble goes home
-                        m.pos = self.KENNEL_POSITIONS[p_idx][0]
-                        m.is_save = False
+            for m_idx, marble in enumerate(player.list_marble):
+                if marble.pos == pos:
+                    # If it's the player's own marble
+                    if p_idx == active_player_idx:
+                        # Send home unless it is protecting the start
+                        if not self.is_marble_protecting_start(p_idx, m_idx):
+                            marble.pos = self.KENNEL_POSITIONS[p_idx][0]
+                            marble.is_save = False
+                    else:
+                        # If it's an opponent's marble
+                        marble.pos = self.KENNEL_POSITIONS[p_idx][0]
+                        marble.is_save = False
 
     def is_marble_protecting_start(self, player_idx: int, marble_idx: int) -> bool:
         """If a marble is at start position and is safe, it protects it"""
@@ -928,11 +931,13 @@ class Dog(Game):
         marble_moved = False
         for marble in self.state.list_player[active_player_index].list_marble:
             if marble.pos == action.pos_from:
-                if action.pos_to is None:
-                    raise ValueError("pos_to must not be None for a 7 card move.")
-                # Handle collisions before updating the marble's position
-                self.send_home_if_passed(action.pos_to, active_player_index)
-                marble.pos = action.pos_to
+                # Handle each intermediate step
+                for step in range(1, steps_moved + 1):
+                    intermediate_pos = (marble.pos + step) % 64
+                    self.send_home_if_passed(intermediate_pos, active_player_index)
+
+                # Move the marble to its final position
+                marble.pos = action.pos_to if action.pos_to is not None else 0
                 marble_moved = True
                 break
 
