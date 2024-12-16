@@ -284,11 +284,14 @@ class Dog(Game):
         """ Check if move is valid """
         marble = self.state.list_player[active_player_idx].list_marble[marble_idx]
 
-        # check if the new position of the marble is occupied by another marble, that is safe
+        # check if the new position of the marble is occupied by another marble, that is safe or in the Finish
         for player_idx, player in enumerate(self.state.list_player):
             for other_marble_idx, other_marble in enumerate(player.list_marble):
-                if other_marble.pos == marble_new_pos and other_marble.is_save:
-                    if not (player_idx == active_player_idx and other_marble_idx == marble_idx):
+                if other_marble.pos == marble_new_pos:
+                    if (not (player_idx == active_player_idx and other_marble_idx == marble_idx)
+                            and other_marble.is_save):
+                        return False
+                    if (not other_marble_idx == marble_idx) and marble_new_pos >= 68:
                         return False
 
         # Check that the Finish is implemented correctly
