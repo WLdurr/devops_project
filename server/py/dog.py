@@ -92,15 +92,15 @@ class GameState(BaseModel):
     list_card_draw: List[Card]         # list of cards to draw
     list_card_discard: List[Card]      # list of cards discarded
     card_active: Optional[Card]        # active card (for 7 and JKR with sequence of actions)
-    steps_remaining_for_7: int = 0     # steps remaining for 7 card
+    steps_remaining_for_7: int = 7     # steps remaining for 7 card
 
 
 class Dog(Game):
     KENNEL_POSITIONS = [
-        [64, 65, 66, 67],  # Positions for player index 0
-        [72, 73, 74, 75],  # Positions for player index 1
-        [80, 81, 82, 83],  # Positions for player index 2
-        [88, 89, 90, 91]  # Positions for player index 3
+        [64, 65, 66, 67],   # Positions for player index 0
+        [72, 73, 74, 75],   # Positions for player index 1
+        [80, 81, 82, 83],   # Positions for player index 2
+        [88, 89, 90, 91]    # Positions for player index 3
     ]
 
     # Define starting positions for each player
@@ -108,10 +108,10 @@ class Dog(Game):
 
     #Define Finish Position
     FINISH_POSITIONS = [
-        [71, 70, 69, 68],  #  Positions for player index 0
-        [79, 78, 77, 76],  #  Positions for player index 1
-        [87, 86, 85, 84],  #  Positions for player index 2
-        [95, 94, 93, 92],  #  Positions for player index 3
+        [68, 69, 70, 71],  #  Positions for player index 0
+        [76, 77, 78, 79],  #  Positions for player index 1
+        [84, 85, 86, 87],  #  Positions for player index 2
+        [92, 93, 94, 95],  #  Positions for player index 3
     ]
 
     def __init__(self) -> None:
@@ -408,11 +408,12 @@ class Dog(Game):
         # if both positions are on the circular board (0-63)
         if pos_from < 64 and pos_to < 64:
             # normal circle move
-            return (pos_to - pos_from) % 64
+            return (pos_to - pos_from + 64) % 64
 
         # if we move from the circle into the finish
         if pos_from < 64 <= pos_to:
-            return (64 - pos_from) + (pos_to - 64)
+            return ((pos_to - self.FINISH_POSITIONS[self.state.idx_player_active][0] + 1) +
+                    (self.START_POSITION[self.state.idx_player_active] + 64 - pos_from)% 64)
 
         if pos_from >= 64 and pos_to >= 64:
             return abs(pos_to - pos_from)
@@ -1012,7 +1013,7 @@ class Dog(Game):
 
     def _handle_seven_action(self, action: Action, active_player_index: int) -> None:
         """Handle a 7 card action."""
-        if self.state.card_active is None:
+        if self.state.card_active is None or self.state.steps_remaining_for_7 == 7:
             # Starting a new 7-sequence: backup the current state
             self.original_state_before_7 = self.state.model_copy(deep=True)
             self.state.card_active = action.card
@@ -1053,7 +1054,6 @@ class Dog(Game):
         if self.state.steps_remaining_for_7 == 0:
             # End the 7-sequence
             self._end_seven_sequence(action, active_player_index)
-
 
     def _end_seven_sequence(self, action: Action, active_player_index: int) -> None:
         """End a 7 card sequence by discarding the card and resetting the state."""
