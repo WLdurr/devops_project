@@ -437,10 +437,10 @@ class DogBenchmark(benchmark.Benchmark):
             hint += f'Error 1: "get_list_action" must return {len(list_action_expected)} not {len(list_action_found)} actions'
             hint += f'\nExpected actions:'
             for action in list_action_expected:
-                    hint += f'\n - {action}'
+                hint += f'\n - {action}'
             hint += f'\nFound actions:'
             for action in list_action_found:
-                    hint += f'\n - {action}'
+                hint += f'\n - {action}'
             assert len(list_action_found) == len(list_action_expected), hint
 
             hint = str_state
@@ -480,7 +480,11 @@ class DogBenchmark(benchmark.Benchmark):
             str_state = str(state)
 
             list_action_found = self.game_server.get_list_action()
-            list_action_expected = [
+
+            # TODO: Remove list_action_expected_2 for next semester
+
+            list_action_expected = []
+            list_action_expected_2 = [  # acceped too, as we won't change the logic anymore
                 Action(card=card, pos_from=0, pos_to=1),
                 Action(card=card, pos_from=1, pos_to=0)
             ]
@@ -493,7 +497,11 @@ class DogBenchmark(benchmark.Benchmark):
             hint += f'\nFound actions:'
             for action in list_action_found:
                     hint += f'\n - {action}'
-            assert len(list_action_found) == len(list_action_expected), hint
+            if len(list_action_found) == len(list_action_expected_2):
+                print('WARNING')
+                print(hint)
+            else:
+                assert len(list_action_found) == len(list_action_expected), hint
 
             hint = str_state
             hint += 'Error 2: "get_list_action" result is wrong'
@@ -501,8 +509,13 @@ class DogBenchmark(benchmark.Benchmark):
             hint += f'\n{self.get_list_action_as_str(list_action_expected)}'
             hint += f'\nFound:'
             hint += f'\n{self.get_list_action_as_str(list_action_found)}'
-            hint += f'\nHint: Oponents that are save on start can not be swaped'
-            assert self.get_sorted_list_action(list_action_found) == self.get_sorted_list_action(list_action_expected), hint
+            hint += f'\nHint: Own marbles can\'t be swapped'
+            if len(list_action_found) == len(list_action_expected_2):
+                print('WARNING')
+                print(hint)
+            else:
+                assert self.get_sorted_list_action(list_action_found) == self.get_sorted_list_action(list_action_expected), hint
+
 
     def test_swap_with_JAKE_3(self):
         """Test 023: Test swap action with card JAKE and oponents [1 point]"""

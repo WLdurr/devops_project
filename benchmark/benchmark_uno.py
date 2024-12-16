@@ -212,13 +212,15 @@ class UnoBenchmark(benchmark.Benchmark):
                 draw = state.cnt_to_draw + 2 if card1.symbol == 'draw2' else None
                 action = Action(card=card1, color=card1.color, draw=draw)
                 list_action_expected.append(action)
-                #draw = state.cnt_to_draw + 2 if card2.symbol == 'draw2' else None
-                #action = Action(card=card2, color=card2.color, draw=draw)
-                #list_action_expected.append(action)
+                if state.cnt_to_draw == 0:
+                    draw = state.cnt_to_draw + 2 if card2.symbol == 'draw2' else None
+                    action = Action(card=card2, color=card2.color, draw=draw)
+                    list_action_expected.append(action)
                 draw = state.cnt_to_draw + 2 if card3.symbol == 'draw2' else None
                 action = Action(card=card3, color=card3.color, draw=draw)
                 list_action_expected.append(action)
-                action = Action(card=None, color=None, draw=1)
+                draw = state.cnt_to_draw if state.cnt_to_draw > 0 else 1
+                action = Action(card=None, color=None, draw=draw)
                 list_action_expected.append(action)
 
                 hint = str_state
@@ -444,6 +446,8 @@ class UnoBenchmark(benchmark.Benchmark):
         list_action_expected = []
         action = Action(card=card, color=card.color, draw=None)
         list_action_expected.append(action)
+        action = Action(card=None, color=None, draw=1)
+        list_action_expected.append(action)
 
         hint = str_state
         hint += 'Error: "get_list_action" result is wrong.\n'
@@ -463,13 +467,13 @@ class UnoBenchmark(benchmark.Benchmark):
         idx_player_active = 0
 
         list_card_draw = []
-        for color in LIST_COLOR:
-            for number in range(10):
+        for color in ['red', 'blue', 'yellow']:  # no green cards
+            for number in range(1, 10):  # no 0 cards
                 card = Card(color=color, number=number, symbol=None)
                 list_card_draw.append(card)
 
-        card = Card(color='green', number=None, symbol='1')
-        idx_top = self.get_idx_top(list_card_draw, cnt_player) 
+        card = Card(color='green', number=0, symbol=None)
+        idx_top = self.get_idx_top(list_card_draw, cnt_player)
         list_card_draw[idx_top] = card
 
         state = GameState(
@@ -513,7 +517,7 @@ class UnoBenchmark(benchmark.Benchmark):
         hint += str_state_2
         hint += f'Error 2: Wrong player active.\n'
         hint += f'Player {idx_player_active} should be active, found Player {state.idx_player_active}.'
-        assert state.idx_player_active==idx_player_active, hint
+        assert state.idx_player_active == idx_player_active, hint
 
         list_action_found = self.game_server.get_list_action()
         list_action_expected = []
@@ -588,7 +592,7 @@ class UnoBenchmark(benchmark.Benchmark):
                 list_card_draw.append(card)
 
         card = Card(color='green', number=None, symbol='draw2')
-        idx_top = self.get_idx_top(list_card_draw, cnt_player) 
+        idx_top = self.get_idx_top(list_card_draw, cnt_player)
         list_card_draw[idx_top] = card
 
         state = GameState(
@@ -611,6 +615,9 @@ class UnoBenchmark(benchmark.Benchmark):
         list_action_expected = []
         action = Action(card=card, color=card.color, draw=4)
         list_action_expected.append(action)
+        draw = state.cnt_to_draw if state.cnt_to_draw > 0 else 1
+        action2 = Action(card=None, color=None, draw=draw)
+        list_action_expected.append(action2)
 
         hint = str_state_1
         hint += 'Error 1: "get_list_action" result is wrong.\n'
