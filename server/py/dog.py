@@ -1,3 +1,5 @@
+# pylint: disable=too-many-lines
+
 ''' This Code implement the game brandy dog'''
 from typing import List, Optional, ClassVar, Tuple, Set
 from enum import Enum
@@ -523,78 +525,149 @@ class Dog(Game):
                 self._add_action(actions, seen_actions, action_data)
 
     def _handle_joker(
-        self,
-        actions: List['Action'],
-        seen_actions: Set[Tuple[str, str, Optional[int], Optional[int]]],
-        active_player_idx: int,
-        card: 'Card',
+            self,
+            actions: List['Action'],
+            seen_actions: Set[Tuple[str, str, Optional[int], Optional[int]]],
+            active_player_idx: int,
+            card: 'Card',
     ) -> None:
         """Handle actions for the Joker card."""
-        # Option 1: Use Joker as Ace to move from kennel
+        self._use_joker_to_exit_kennel(actions, seen_actions, active_player_idx, card)
+        self._use_joker_for_steps(actions, card)
+        self._use_joker_as_jack(actions, active_player_idx, card)
+
+    def _use_joker_to_exit_kennel(
+            self,
+            actions: List['Action'],
+            seen_actions: Set[Tuple[str, str, Optional[int], Optional[int]]],
+            active_player_idx: int,
+            card: 'Card',
+    ) -> None:
+        """Use Joker to get out of the kennel."""
         marbles_in_kennel = [
             marble
             for marble in self.state.list_player[active_player_idx].list_marble
             if marble.pos in self.KENNEL_POSITIONS[active_player_idx]
         ]
         if marbles_in_kennel and not self._is_start_position_occupied(active_player_idx):
-            marble = marbles_in_kennel[0]  # Move the first marble in the kennel
+            marble = marbles_in_kennel[0]
             action_data = ActionData(
                 card=card,
                 pos_from=marble.pos,
                 pos_to=self.START_POSITION[active_player_idx],
             )
             self._add_action(actions, seen_actions, action_data)
-
-        # Option 2: Use Joker to move between 1 and 13 steps
-        for possible_card in range(1, 14):
-            for marble in self.state.list_player[active_player_idx].list_marble:
-                if marble.pos not in self.KENNEL_POSITIONS[active_player_idx]:
-                    self._handle_joker_moves(
-                        actions, seen_actions, card, possible_card
+            for suit in self.state.LIST_SUIT:
+                for rank in ['A', 'K']:
+                    actions.append(
+                        Action(
+                            card=card,
+                            pos_from=None,
+                            pos_to=None,
+                            card_swap=Card(suit=suit, rank=rank),
+                        )
                     )
 
-        # Option 3: Swap Joker with Ace and King for each suit
-        for suit in self.state.LIST_SUIT:
-            # Swap with Ace
-            actions.append(
-                Action(
-                    card=card,
-                    pos_from=None,
-                    pos_to=None,
-                    card_swap=Card(suit=suit, rank='A'),
+    def _use_joker_for_steps(
+            self,
+            actions: List['Action'],
+            card: 'Card'
+    ) -> None:
+        """Use Joker to move between 1 and 13 steps."""
+        for possible_card in [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13]:
+            self._handle_joker_moves(actions, card, possible_card)
+
+    def _use_joker_as_jack(
+            self,
+            actions: List['Action'],
+            active_player_idx: int,
+            card: 'Card'
+    ) -> None:
+        """Use Joker as Jack."""
+        idx_other_players = [idx for idx in range(4) if idx != active_player_idx]
+        exchange_possible = False
+
+        for p1 in [active_player_idx]:
+            for p2 in idx_other_players:
+                if self._can_exchange_marbles(p1, p2):
+                    exchange_possible = True
+
+        if exchange_possible or not actions:
+            for suit in self.state.LIST_SUIT:
+                actions.append(
+                    Action(
+                        card=card,
+                        pos_from=None,
+                        pos_to=None,
+                        card_swap=Card(suit=suit, rank="J"),
+                    )
                 )
-            )
-            # Swap with King
-            actions.append(
-                Action(
-                    card=card,
-                    pos_from=None,
-                    pos_to=None,
-                    card_swap=Card(suit=suit, rank='K'),
-                )
-            )
+
+    def _can_exchange_marbles(self, player1_idx: int, player2_idx: int) -> bool:
+        """Check if marbles can be exchanged between two players."""
+        for first_marble in self.state.list_player[player1_idx].list_marble:
+            if first_marble.pos not in self.KENNEL_POSITIONS[player1_idx] and first_marble.pos not in \
+                    self.FINISH_POSITIONS[player1_idx]:
+                for other_marble in self.state.list_player[player2_idx].list_marble:
+                    if other_marble.pos not in self.KENNEL_POSITIONS[player2_idx] and other_marble.pos not in \
+                            self.FINISH_POSITIONS[player2_idx] and not other_marble.is_save:
+                        return True
+        return False
 
     def _handle_joker_moves(
         self,
         actions: List['Action'],
-        seen_actions: Set[Tuple[str, str, Optional[int], Optional[int]]],
         card: 'Card',
         steps_to_move: int,
     ) -> None:
         """Handle moves for the Joker card."""
         active_player_idx = self.state.idx_player_active
         marbles = self.state.list_player[active_player_idx].list_marble
+        joker_move_possible = False
         for marble_idx, marble in enumerate(marbles):
-            move_allowed = True
-            new_marble_pos = marble.pos
-            for _ in range(steps_to_move):
-                new_marble_pos = (new_marble_pos + 1) % 64
-                if not self.check_move_validity(active_player_idx, marble_idx, new_marble_pos):
-                    move_allowed = False
-                    break
-            if move_allowed:
-                action_data = ActionData(card=card, pos_from=marble.pos, pos_to=new_marble_pos)
-                self._add_action(actions, seen_actions, action_data)
+            if not marble.pos in self.KENNEL_POSITIONS[active_player_idx]:
+                new_marble_pos = self._can_move_forward(active_player_idx, marble_idx, marble, steps_to_move)
+                if new_marble_pos != -1:
+                    joker_move_possible = True
+
+        if joker_move_possible:
+            for suit in self.state.LIST_SUIT:
+                if steps_to_move == 1:
+                    actions.append(
+                        Action(
+                            card=card,
+                            pos_from=None,
+                            pos_to=None,
+                            card_swap=Card(suit=suit, rank='A'),
+                        )
+                    )
+                elif steps_to_move == 12:
+                    actions.append(
+                        Action(
+                            card=card,
+                            pos_from=None,
+                            pos_to=None,
+                            card_swap=Card(suit=suit, rank='Q'),
+                        )
+                    )
+                elif steps_to_move == 13:
+                    actions.append(
+                        Action(
+                            card=card,
+                            pos_from=None,
+                            pos_to=None,
+                            card_swap=Card(suit=suit, rank='K'),
+                        )
+                    )
+                else:
+                    actions.append(
+                        Action(
+                            card=card,
+                            pos_from=None,
+                            pos_to=None,
+                            card_swap=Card(suit=suit, rank=str(steps_to_move)),
+                        )
+                    )
 
     def _add_action(
         self,

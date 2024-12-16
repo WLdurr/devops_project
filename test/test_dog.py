@@ -568,22 +568,32 @@ def setup_game_state_for_joker(game, active_player_idx, marble_positions):
     for marble, pos in zip(active_player.list_marble, marble_positions):
         marble.pos = pos
 
+
 def test_handle_joker_moves(game):
     """Test handling moves for a Joker card."""
+    # Setup game state with a Joker card in hand and marbles at specific positions
     setup_game_state_for_joker(game, 0, [0, 10, 20, 30])
     actions = []
     seen_actions = set()
     steps_to_move = 7  # Example number of steps for Joker
 
     # Call the method to test
-    game._handle_joker_moves(actions, seen_actions, game.state.card_active, steps_to_move)
+    game._handle_joker_moves(actions, game.state.list_player[0].list_card[0], steps_to_move)
 
     # Verify that actions are generated correctly
     assert len(actions) > 0, "No actions generated for Joker card"
+    valid_positions = [(marble.pos + steps_to_move) % 64 for marble in game.state.list_player[0].list_marble]
+
     for action in actions:
         assert action.card.rank == 'JKR', "Action does not involve a Joker card"
-        assert action.pos_to in [(marble.pos + steps_to_move) % 64
-                                 for marble in game.state.list_player[0].list_marble], "Invalid move generated"
+
+        # Check if the action is a move or a swap
+        if action.pos_to is not None:
+            assert action.pos_to in valid_positions, "Invalid move generated"
+        elif action.card_swap is not None:
+            assert action.card_swap.rank in ['A', 'K', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J',
+                                             'Q'], "Invalid card swap generated"
+
 
 def setup_game_state_for_seven(game, active_player_idx, marble_positions):
     """Helper function to set up the game state for testing a Seven card."""
