@@ -238,7 +238,13 @@ class Dog(Game):
             )
 
         # Handle card-specific actions
-        for card in self.state.list_player[active_player_idx].list_card:
+        if self.state.card_active is None:
+            # If no card is active, the player can choose from any card in their hand
+            possible_cards = self.state.list_player[active_player_idx].list_card
+        else:
+            # If there is an active card, restrict possible actions to this card
+            possible_cards = [self.state.card_active]
+        for card in possible_cards:
             self._handle_card_actions(
                 actions, seen_actions, active_player_idx, card
             )
@@ -262,6 +268,12 @@ class Dog(Game):
         elif action.card.rank == "7":
             self._handle_seven_action(action, active_player_index)
             return
+        elif action.card.rank == "JKR":
+            self.state.card_active = action.card_swap
+            if action.card in self.state.list_player[active_player_index].list_card:
+                self.state.list_player[active_player_index].list_card.remove(action.card)
+            return
+
         elif action.pos_from is not None and action.pos_to is not None:
             self._handle_normal_move(action, active_player_index)
 
@@ -470,7 +482,14 @@ class Dog(Game):
         ]
         marbles_in_kennel.sort(key=lambda x: x.pos)
 
-        for card in self.state.list_player[active_player_idx].list_card:
+        if self.state.card_active is None:
+            # If no card is active, the player can choose from any card in their hand
+            possible_cards = self.state.list_player[active_player_idx].list_card
+        else:
+            # If there is an active card, restrict possible actions to this card
+            possible_cards = [self.state.card_active]
+
+        for card in possible_cards:
             if card.rank in ['K', 'A', 'JKR'] and marbles_in_kennel:
                 action_data = ActionData(
                     card=card,
