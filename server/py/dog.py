@@ -389,15 +389,12 @@ class Dog(Game):
             return actions
 
         for marble_idx, marble in enumerate(self.state.list_player[active_player_idx].list_marble):
-            if marble.pos < 64:  # Marble must be on the board
+            if (marble.pos not in self.KENNEL_POSITIONS[active_player_idx] and
+                    marble.pos != self.FINISH_POSITIONS[active_player_idx][3]):
                 for steps_to_move in range(1, self.state.steps_remaining_for_7 + 1):
-                    if self.can_move_steps(
-                        active_player_idx, marble_idx, steps_to_move, direction=1
-                    ):
-                        new_marble_pos = (marble.pos + steps_to_move) % 64
-                        action_data = ActionData(
-                            card=card, pos_from=marble.pos, pos_to=new_marble_pos
-                        )
+                    des_dest = self._can_move_forward(active_player_idx, marble_idx, marble, steps_to_move)
+                    if des_dest != -1:
+                        action_data = ActionData(card=card, pos_from=marble.pos, pos_to=des_dest)
                         self._add_unique_action(actions, seen_actions, action_data)
         return actions
 
