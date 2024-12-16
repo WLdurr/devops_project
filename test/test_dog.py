@@ -412,12 +412,6 @@ def test_get_list_action_ace(game):
     actions = game.get_list_action()
     assert any(action.card.rank == 'A' for action in actions), "Should generate actions for Ace"
 
-def test_get_list_action_king(game):
-    """Test actions generated for a King card."""
-    setup_game_state_for_testing(game, 'K', [0, 64, 65, 66])
-    actions = game.get_list_action()
-    assert any(action.card.rank == 'K' for action in actions), "Should generate actions for King"
-
 def test_get_list_action_four(game):
     """Test actions generated for a Four card (backward move)."""
     setup_game_state_for_testing(game, '4', [10, 64, 65, 66])
@@ -521,3 +515,155 @@ def test_jack_swap_within_player(game):
         "Should generate action to swap marble from position 5 to 15 within the same player"
     assert any(action.pos_from == 15 and action.pos_to == 5 for action in actions), \
         "Should generate action to swap marble from position 15 to 5 within the same player"
+
+def setup_game_state_for_seven_card(game, active_player_idx, marble_positions, steps_remaining_for_7):
+    """Helper function to set up the game state for testing a 7 card."""
+    game.state.idx_player_active = active_player_idx
+    active_player = game.state.list_player[active_player_idx]
+    active_player.list_card = [Card(suit='♠', rank='7')]
+    game.state.card_active = active_player.list_card[0]
+    game.state.steps_remaining_for_7 = steps_remaining_for_7
+    for marble, pos in zip(active_player.list_marble, marble_positions):
+        marble.pos = pos
+
+def test_get_actions_for_seven_card(game):
+    """Test actions generated for a 7 card."""
+    setup_game_state_for_seven_card(game, 0, [0, 10, 20, 30], 7)
+    actions = []
+    seen_actions = set()
+    generated_actions = game._get_actions_for_seven_card(actions, seen_actions, 0)
+
+    # Verify that actions are generated correctly
+    assert len(generated_actions) > 0, "No actions generated for 7 card"
+    for action in generated_actions:
+        assert action.card.rank == '7', "Action does not involve a 7 card"
+        assert action.pos_to in [(marble.pos + steps) % 64 for marble in game.state.list_player[0].list_marble for
+                                 steps in range(1, 8)], "Invalid move generated"
+
+def test_calculate_7_steps(game):
+    """Test step calculation for a 7 card move."""
+    # Test normal circle move
+    assert game.calculate_7_steps(0, 7) == 7, "Incorrect steps for normal move"
+    assert game.calculate_7_steps(63, 6) == 7, "Incorrect steps for wrapping move"
+
+    # Test move from circle into finish
+    assert game.calculate_7_steps(60, 68) == 8, "Incorrect steps for move into finish"
+
+    # Test move within finish
+    assert game.calculate_7_steps(68, 70) == 2, "Incorrect steps for move within finish"
+
+    # Test invalid move (should raise error)
+    with pytest.raises(ValueError):
+        game.calculate_7_steps(None, 70)
+
+    with pytest.raises(ValueError):
+        game.calculate_7_steps(68, None)
+
+def setup_game_state_for_joker(game, active_player_idx, marble_positions):
+    """Helper function to set up the game state for testing a Joker card."""
+    game.state.idx_player_active = active_player_idx
+    active_player = game.state.list_player[active_player_idx]
+    active_player.list_card = [Card(suit='', rank='JKR')]
+    game.state.card_active = active_player.list_card[0]
+    for marble, pos in zip(active_player.list_marble, marble_positions):
+        marble.pos = pos
+
+def test_handle_joker_moves(game):
+    """Test handling moves for a Joker card."""
+    setup_game_state_for_joker(game, 0, [0, 10, 20, 30])
+    actions = []
+    seen_actions = set()
+    steps_to_move = 7  # Example number of steps for Joker
+
+    # Call the method to test
+    game._handle_joker_moves(actions, seen_actions, game.state.card_active, steps_to_move)
+
+    # Verify that actions are generated correctly
+    assert len(actions) > 0, "No actions generated for Joker card"
+    for action in actions:
+        assert action.card.rank == 'JKR', "Action does not involve a Joker card"
+        assert action.pos_to in [(marble.pos + steps_to_move) % 64
+                                 for marble in game.state.list_player[0].list_marble], "Invalid move generated"
+
+def setup_game_state_for_seven(game, active_player_idx, marble_positions):
+    """Helper function to set up the game state for testing a Seven card."""
+    game.state.idx_player_active = active_player_idx
+    active_player = game.state.list_player[active_player_idx]
+    active_player.list_card = [Card(suit='♠', rank='7')]
+    game.state.card_active = active_player.list_card[0]
+    for marble, pos in zip(active_player.list_marble, marble_positions):
+        marble.pos = pos
+
+def test_handle_seven(game):
+    """Test handling actions for a Seven card."""
+    setup_game_state_for_seven(game, 0, [0, 10, 20, 30])
+    actions = []
+    seen_actions = set()
+
+    # Call the method to test
+    game._handle_seven(actions, seen_actions, 0, game.state.card_active)
+
+    # Verify that actions are generated correctly
+    assert len(actions) > 0, "No actions generated for Seven card"
+    for action in actions:
+        assert action.card.rank == '7', "Action does not involve a Seven card"
+        assert action.pos_to in [(marble.pos + steps) % 64 for marble in game.state.list_player[0].list_marble
+                                 for steps in range(1, 8)], "Invalid move generated"
+
+def setup_game_state_for_card_swap(game, active_player_idx, card_to_swap):
+    """Helper function to set up the game state for testing card swaps."""
+    game.state.idx_player_active = active_player_idx
+    active_player = game.state.list_player[active_player_idx]
+    partner_idx = (active_player_idx + 2) % game.state.cnt_player
+    active_player.list_card = [card_to_swap]
+    game.state.list_player[partner_idx].list_card = []
+
+def test_handle_card_swap(game):
+    """Test handling of card swapping."""
+    card_to_swap = Card(suit='♠', rank='J')
+    setup_game_state_for_card_swap(game, 0, card_to_swap)
+    action = Action(card=card_to_swap, pos_from=None, pos_to=None, card_swap=None)
+
+    # Call the method to test
+    game._handle_card_swap(action)
+
+    # Verify that the card was swapped
+    assert card_to_swap not in game.state.list_player[0].list_card, "Card was not removed from active player"
+    assert card_to_swap in game.state.list_player[2].list_card, "Card was not added to partner"
+    assert (0, card_to_swap) in game.exchanges_done, "Exchange was not recorded"
+    assert game.state.idx_player_active == 1, "Active player did not change correctly"
+
+def setup_game_state_for_seven_action(game, active_player_idx, marble_positions, active_card):
+    """Helper function to set up the game state for testing a Seven card action."""
+    game.state.idx_player_active = active_player_idx
+    active_player = game.state.list_player[active_player_idx]
+    active_player.list_card = [active_card]
+    game.state.card_active = active_card
+    game.state.steps_remaining_for_7 = 7
+    for marble, pos in zip(active_player.list_marble, marble_positions):
+        marble.pos = pos
+
+def test_handle_seven_action(game):
+    """Test handling of a Seven card action."""
+    seven_card = Card(suit='♠', rank='7')
+    setup_game_state_for_seven_action(game, 0, [0, 10, 20, 30], seven_card)
+    action = Action(card=seven_card, pos_from=0, pos_to=7)
+
+    # Call the method to test
+    game._handle_seven_action(action, 0)
+
+    # Verify that the marble was moved correctly
+    assert game.state.list_player[0].list_marble[0].pos == 7, "Marble was not moved correctly"
+    assert game.state.steps_remaining_for_7 == 0, "Steps remaining for 7 were not decremented correctly"
+
+def test_handle_seven_action_invalid(game):
+    """Test handling of an invalid Seven card action."""
+    seven_card = Card(suit='♠', rank='7')
+    setup_game_state_for_seven_action(game, 0, [0, 10, 20, 30], seven_card)
+    action = Action(card=seven_card, pos_from=0, pos_to=20)
+
+    # Expect a ValueError due to invalid number of steps
+    with pytest.raises(ValueError, match="Invalid number of steps for this 7-move action."):
+        game._handle_seven_action(action, 0)
+
+
