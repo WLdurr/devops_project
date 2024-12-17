@@ -288,6 +288,9 @@ class Dog(Game):
         if self.state.card_active is None:
             self._change_active_player()
 
+        # Check if the game is finished
+        self._check_game_finished()
+
     def get_player_view(self, idx_player: int) -> GameState:
         """ Get the masked state for the active player (e.g. the opponent's cards are face down)"""
         player_view = self.state.model_copy(deep = True)
@@ -1063,6 +1066,27 @@ class Dog(Game):
         self.state.card_active = None
         self.original_state_before_7 = None
         self._change_active_player()
+
+    def _check_game_finished(self) -> None:
+        """Check if the game is finished by verifying all marbles are in the finish."""
+        teams = [
+            [0, 2],  # Team 1: Player 0 and Player 2
+            [1, 3]   # Team 2: Player 1 and Player 3
+        ]
+
+        for team in teams:
+            for player_idx in team:
+                # Check if all marbles of the team are in their respective finish positions
+                team_finished = all(
+                    marble.pos in self.FINISH_POSITIONS[player_idx]
+                    for player_idx in team
+                    for marble in self.state.list_player[player_idx].list_marble
+                )
+
+                if team_finished:
+                    self.state.phase = GamePhase.FINISHED
+                    return  # Stop checking once a team finishes
+
 
 class RandomPlayer(Player):
     """Random player that selects actions randomly"""
