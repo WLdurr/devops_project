@@ -93,7 +93,6 @@ async def hangman_singleplayer_ws(websocket: WebSocket):
 async def battleship_simulation(request: Request):
     return templates.TemplateResponse("game/battleship/simulation.html", {"request": request})
 
-
 @app.websocket("/battleship/simulation/ws")
 async def battleship_simulation_ws(websocket: WebSocket):
     await websocket.accept()
@@ -363,14 +362,11 @@ async def dog_singleplayer_ws(websocket: WebSocket):
 @app.websocket("/dog/random_player/ws")
 async def dog_random_player_ws(websocket: WebSocket):
     await websocket.accept()
+    game = dog.Dog()
+    player = dog.RandomPlayer()
 
     try:
-
-        game = dog.Dog()
-        player = dog.RandomPlayer()
-
         while True:
-
             state = game.get_state()
             if state.phase == dog.GamePhase.FINISHED:
                 break
