@@ -249,6 +249,28 @@ class Dog(Game):
                 actions, seen_actions, active_player_idx, card
             )
 
+        partner_idx = (active_player_idx + 2) % self.state.cnt_player
+        # Check if all marbles of the active player are in the finish
+        marbles_finished = all(
+            marble.pos in self.FINISH_POSITIONS[active_player_idx]
+            for marble in self.state.list_player[active_player_idx].list_marble
+        )
+
+        # Allow actions for the partner's marbles if marbles are finished
+        if marbles_finished:
+            partner_idx = (active_player_idx + 2) % self.state.cnt_player  # Partner's index
+            partner = self.state.list_player[partner_idx]
+
+            # Generate actions for partner's marbles using the active player's card
+            for card in self.state.list_player[active_player_idx].list_card:  # Use active player's cards for partner
+                for marble_idx, marble in enumerate(partner.list_marble):
+                    if marble.pos not in self.KENNEL_POSITIONS[partner_idx]:  # Partner's valid marbles
+                        # Compute possible destinations
+                        pos_to = self.compute_final_position(marble.pos, int(card.rank), partner_idx)
+                        if self.check_move_validity(partner_idx, marble_idx, pos_to):
+                            action_data = ActionData(card=card, pos_from=marble.pos, pos_to=pos_to)
+                            self._add_unique_action(actions, seen_actions, action_data)
+
         return actions
 
     def apply_action(self, action: Action) -> None:
@@ -960,14 +982,21 @@ class Dog(Game):
 
     def _handle_normal_move(self, action: Action, active_player_index: int) -> None:
         """Handle a normal card move."""
-        for marble in self.state.list_player[active_player_index].list_marble:
-            if marble.pos == action.pos_from:
-                if action.pos_to is not None:
-                    self._move_marble(marble, action.pos_to, active_player_index)
+        moved = False
+        possible_owners = [active_player_index, (active_player_index + 2) % self.state.cnt_player]
+
+        for owner_idx in possible_owners:
+            for marble in self.state.list_player[owner_idx].list_marble:
+                if marble.pos == action.pos_from:
+                    if action.pos_to is not None:
+                        self._move_marble(marble, action.pos_to, owner_idx)
+                    moved = True
+                    break
+            if moved:
                 break
 
     def _move_marble(
-        self, marble: Marble, pos_to: int, active_player_index: int
+        self, marble: Marble, pos_to: int, marble_owner_idx: int
     ) -> None:
         """Move a marble to a new position."""
         # Handle collisions
@@ -978,8 +1007,11 @@ class Dog(Game):
                     other_marble.is_save = False
 
         marble.pos = pos_to
-        if pos_to == self.START_POSITION[active_player_index]:
+        # Only set is_save = True if the marble lands on its own start position
+        if pos_to == self.START_POSITION[marble_owner_idx]:
             marble.is_save = True
+        else:
+            marble.is_save = False
 
     def _move_card_to_discard(self, action: Action, active_player_index: int) -> None:
         """Move the played card to the discard pile."""
