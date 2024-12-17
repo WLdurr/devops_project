@@ -259,13 +259,11 @@ async def dog_simulation(request: Request):
 @app.websocket("/dog/simulation/ws")
 async def dog_simulation_ws(websocket: WebSocket):
     await websocket.accept()
+    game = dog.Dog()
+    player = dog.RandomPlayer()
 
     try:
-        game = dog.Dog()
-        player = dog.RandomPlayer()
-
         while True:
-
             state = game.get_state()
             list_action = game.get_list_action()
             action = None
@@ -299,22 +297,16 @@ async def dog_singleplayer(request: Request):
 @app.websocket("/dog/singleplayer/ws")
 async def dog_singleplayer_ws(websocket: WebSocket):
     await websocket.accept()
-
+    game = dog.Dog()
     idx_player_you = 0
 
     try:
-
-        game = dog.Dog()
-        player = dog.RandomPlayer()
-
         while True:
-
             state = game.get_state()
             if state.phase == dog.GamePhase.FINISHED:
                 break
 
             if state.idx_player_active == idx_player_you:
-
                 state = game.get_player_view(idx_player_you)
                 list_action = game.get_list_action()
                 dict_state = state.model_dump()
@@ -330,7 +322,6 @@ async def dog_singleplayer_ws(websocket: WebSocket):
                     if data['type'] == 'action':
                         action = dog.DogAction.model_validate(data['action'])
                         game.apply_action(action)
-                        print(action)
 
                 state = game.get_player_view(idx_player_you)
                 dict_state = state.model_dump()
@@ -341,10 +332,9 @@ async def dog_singleplayer_ws(websocket: WebSocket):
                 await websocket.send_json(data)
 
             else:
-
                 state = game.get_player_view(state.idx_player_active)
                 list_action = game.get_list_action()
-                action = player.select_action(state, list_action)
+                action = dog.RandomPlayer().select_action(state, list_action)
                 if action is not None:
                     await asyncio.sleep(1)
                 game.apply_action(action)
