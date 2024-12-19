@@ -38,7 +38,7 @@ jobs:
 
       - name: Deploy to Cloud Run
         run: |
-          gcloud run deploy devops-group16-server \
+          gcloud run deploy devops-group1-server \
             --image gcr.io/${{ secrets.GCP_PROJECT_ID }}/devops_group_1_server_image:latest \
             --platform managed \
             --region us-central1 \
