@@ -1,1 +1,48 @@
- 
+name: Deploy to google cloud
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy-job:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Authenticate Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+
+      - name: Set up gcloud CLI
+        uses: google-github-actions/setup-gcloud@v1
+        with:
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+          export_default_credentials: true
+
+      - name: Configure Docker authentication
+        run: gcloud auth configure-docker
+
+      - name: Build Docker image
+        run: docker build -t gcr.io/${{ secrets.GCP_PROJECT_ID }}/devops_group_1_server_image:latest .
+
+      - name: Push Docker image
+        run: docker push gcr.io/${{ secrets.GCP_PROJECT_ID }}/devops_group_1_server_image:latest
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy devops-group16-server \
+            --image gcr.io/${{ secrets.GCP_PROJECT_ID }}/devops_group_1_server_image:latest \
+            --platform managed \
+            --region us-central1 \
+            --allow-unauthenticated
+
+      - name: Print Application URL
+        run: gcloud run services describe devops-group1-server --region us-central1 --format='value(status.url)'
