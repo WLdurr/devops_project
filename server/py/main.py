@@ -259,19 +259,22 @@ async def dog_simulation(request: Request):
 @app.websocket("/dog/simulation/ws")
 async def dog_simulation_ws(websocket: WebSocket):
     await websocket.accept()
-    game = dog.Dog()
-    player = dog.RandomPlayer()
 
     try:
+        game = dog.Dog()
+        player = dog.RandomPlayer()
+
         while True:
             state = game.get_state()
             list_action = game.get_list_action()
             action = None
+
+            # Check if actions are available for the current phase
             if len(list_action) > 0:
                 action = player.select_action(state, list_action)
 
             dict_state = state.model_dump()
-            dict_state['list_action'] = []
+            dict_state['list_action'] = [action.model_dump() for action in list_action]
             dict_state['selected_action'] = None if action is None else action.model_dump()
             data = {'type': 'update', 'state': dict_state}
             await websocket.send_json(data)
@@ -279,14 +282,34 @@ async def dog_simulation_ws(websocket: WebSocket):
             if state.phase == dog.GamePhase.FINISHED:
                 break
 
+            # Wait for client interaction
             data = await websocket.receive_json()
 
             if data['type'] == 'action':
                 action = dog.DogAction.model_validate(data['action'])
                 game.apply_action(action)
 
+            elif data['type'] == 'submit':  # Handle "Submit" for card exchange
+                selected_cards = data.get('selected_cards', [])
+                if selected_cards:
+                    # Logic for exchanging cards
+                    print(f"Simulation exchanging cards: {selected_cards}")
+                    game.exchange_cards(state.idx_player_active, selected_cards)
+                else:
+                    print("No cards selected for exchange.")
+
+            # Simulate opponent's turn if needed
+            if state.idx_player_active != 0:
+                opponent_state = game.get_player_view(state.idx_player_active)
+                opponent_actions = game.get_list_action()
+                opponent_action = player.select_action(opponent_state, opponent_actions)
+                if opponent_action:
+                    await asyncio.sleep(1)  # Simulate delay for opponent's action
+                game.apply_action(opponent_action)
+
     except WebSocketDisconnect:
         print('DISCONNECTED')
+
 
 
 @app.get("/dog/singleplayer", response_class=HTMLResponse)
@@ -297,16 +320,20 @@ async def dog_singleplayer(request: Request):
 @app.websocket("/dog/singleplayer/ws")
 async def dog_singleplayer_ws(websocket: WebSocket):
     await websocket.accept()
-    game = dog.Dog()
+
     idx_player_you = 0
 
     try:
+        game = dog.Dog()
+        player = dog.RandomPlayer()
+
         while True:
             state = game.get_state()
             if state.phase == dog.GamePhase.FINISHED:
                 break
 
             if state.idx_player_active == idx_player_you:
+                # Player's turn
                 state = game.get_player_view(idx_player_you)
                 list_action = game.get_list_action()
                 dict_state = state.model_dump()
@@ -322,7 +349,17 @@ async def dog_singleplayer_ws(websocket: WebSocket):
                     if data['type'] == 'action':
                         action = dog.DogAction.model_validate(data['action'])
                         game.apply_action(action)
+                        print(action)
+                    elif data['type'] == 'submit':  # Handle "Submit" for card exchange
+                        selected_cards = data.get('selected_cards', [])
+                        if selected_cards:
+                            # Logic for exchanging cards
+                            print(f"Player {idx_player_you} exchanging cards: {selected_cards}")
+                            game.exchange_cards(idx_player_you, selected_cards)
+                        else:
+                            print("No cards selected for exchange.")
 
+                # Update the state after action or exchange
                 state = game.get_player_view(idx_player_you)
                 dict_state = state.model_dump()
                 dict_state['idx_player_you'] = idx_player_you
@@ -332,12 +369,15 @@ async def dog_singleplayer_ws(websocket: WebSocket):
                 await websocket.send_json(data)
 
             else:
+                # Other player's turn
                 state = game.get_player_view(state.idx_player_active)
                 list_action = game.get_list_action()
-                action = dog.RandomPlayer().select_action(state, list_action)
+                action = player.select_action(state, list_action)
                 if action is not None:
                     await asyncio.sleep(1)
                 game.apply_action(action)
+
+                # Update state for the active player
                 state = game.get_player_view(idx_player_you)
                 dict_state = state.model_dump()
                 dict_state['idx_player_you'] = idx_player_you
