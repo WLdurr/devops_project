@@ -20,6 +20,7 @@ jobs:
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
           project_id: ${{ secrets.GCP_PROJECT_ID }}
           workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          audience: "https://token.actions.githubusercontent.com"
 
       - name: Set up gcloud CLI
         uses: google-github-actions/setup-gcloud@v1
